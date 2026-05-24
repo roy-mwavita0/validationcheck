@@ -1,0 +1,31 @@
+Package: validationcheck
+Title: Interactive Data Validation Framework for Monitoring and Evaluation
+Version: 0.0.0.9000
+Authors@R: 
+    person(
+      "Roy",
+      "Mwavita",
+      email = "lennicroy@gmail.com",
+      role = c("aut", "cre")
+    )
+Description: 
+    validationcheck is an interactive data quality and validation 
+    framework designed for Monitoring, Evaluation, Accountability, 
+    and Learning (MEAL) systems. The package allows users to run 
+    validation checks, identify data quality issues, generate 
+    interactive validation reports, and extract failed records.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+Imports:
+    dplyr,
+    htmltools,
+    janitor,
+    magrittr,
+    reactable,
+    rlang,
+    tibble
+Depends:
+    R (>= 4.1.0)
+LazyData: true
