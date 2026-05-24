@@ -25,6 +25,6 @@ report <- validate_data(sample_registry) %>%
 
 get_report(report)
 
-<img width="1837" height="537" alt="Screenshot 2026-05-24 150640" src="https://github.com/user-attachments/assets/6d859090-8196-473c-aae8-fea07c8305f3" />
-
 ```
+
+<img width="1837" height="537" alt="Screenshot 2026-05-24 150640" src="https://github.com/user-attachments/assets/6d859090-8196-473c-aae8-fea07c8305f3" />
