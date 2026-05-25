@@ -1,6 +1,6 @@
 #' Add Validation Rule
 #'
-#' Applies a validation rule to a validation agent object.
+#' Applies validation rules to a validation agent object.
 #'
 #' This function evaluates validation checks and stores:
 #' \itemize{
@@ -29,7 +29,7 @@
 #'
 #' @param rule Description of the validation rule.
 #'
-#' @param preconditions Optional filtering conditions applied
+#' @param preconditions Optional preprocessing pipeline applied
 #' before validation.
 #'
 #' @param check Validation function used to identify failed rows.
@@ -52,8 +52,8 @@
 #'   \item CRITICAL = Above 20%
 #' }
 #'
-#' Preconditions allow validations to run only on specific
-#' subsets of data.
+#' Preconditions allow users to preprocess data before
+#' validation using dplyr pipelines.
 #'
 #' @examples
 #'
@@ -73,7 +73,8 @@
 #'     rule = "Participant age should not exceed 24 years",
 #'
 #'     preconditions =
-#'       hiv_status == "POSITIVE",
+#'       filter(hiv_status == "POSITIVE") %>%
+#'       distinct(id_number, .keep_all = TRUE),
 #'
 #'     check = greater_than(24)
 #'   ) %>%
@@ -110,7 +111,7 @@ add_validation <- function(
   # CAPTURE PRECONDITIONS
   # -----------------------------------------------------------------------
 
-  preconditions <- rlang::enquo(preconditions)
+  preconditions <- rlang::enexpr(preconditions)
 
   # -----------------------------------------------------------------------
   # APPLY PRECONDITIONS
@@ -118,13 +119,14 @@ add_validation <- function(
 
   checked_data <- data
 
-  if (!rlang::quo_is_null(preconditions)) {
+  if (!rlang::is_null(preconditions)) {
 
-    checked_data <- checked_data %>%
+    checked_data <- rlang::eval_tidy(
 
-      dplyr::filter(
-        !!preconditions
+      rlang::expr(
+        data %>% !!preconditions
       )
+    )
   }
 
   # -----------------------------------------------------------------------

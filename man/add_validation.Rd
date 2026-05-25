@@ -16,7 +16,7 @@ add_validation(agent, label, columns, rule, preconditions = NULL, check)
 
 \item{rule}{Description of the validation rule.}
 
-\item{preconditions}{Optional filtering conditions applied
+\item{preconditions}{Optional preprocessing pipeline applied
 before validation.}
 
 \item{check}{Validation function used to identify failed rows.}
@@ -31,7 +31,7 @@ Returns an updated validation object containing:
 }
 }
 \description{
-Applies a validation rule to a validation agent object.
+Applies validation rules to a validation agent object.
 }
 \details{
 This function evaluates validation checks and stores:
@@ -60,8 +60,8 @@ Severity is automatically assigned based on failure rate:
 \item CRITICAL = Above 20\%
 }
 
-Preconditions allow validations to run only on specific
-subsets of data.
+Preconditions allow users to preprocess data before
+validation using dplyr pipelines.
 }
 \examples{
 
@@ -81,7 +81,8 @@ report <- report \%>\%
     rule = "Participant age should not exceed 24 years",
 
     preconditions =
-      hiv_status == "POSITIVE",
+      filter(hiv_status == "POSITIVE") \%>\%
+      distinct(id_number, .keep_all = TRUE),
 
     check = greater_than(24)
   ) \%>\%
