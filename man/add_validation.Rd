@@ -4,7 +4,7 @@
 \alias{add_validation}
 \title{Add Validation Rule}
 \usage{
-add_validation(agent, label, columns, rule, preconditions = identity, check)
+add_validation(agent, label, columns, rule, preconditions = NULL, check)
 }
 \arguments{
 \item{agent}{Validation object created using
@@ -16,64 +16,85 @@ add_validation(agent, label, columns, rule, preconditions = identity, check)
 
 \item{rule}{Description of the validation rule.}
 
-\item{preconditions}{Optional preprocessing steps applied
+\item{preconditions}{Optional filtering conditions applied
 before validation.}
 
-\item{check}{Validation condition used to identify failed rows.}
+\item{check}{Validation function used to identify failed rows.}
 }
 \value{
 Returns an updated validation object containing:
 \itemize{
 \item validation results
 \item failure rates
-\item severity classification
-\item failed records (stored separately for reliability)
+\item severity classifications
+\item failed records
 }
 }
 \description{
 Applies a validation rule to a validation agent object.
 }
 \details{
-This function evaluates user-defined validation checks
-and stores validation results including:
+This function evaluates validation checks and stores:
 \itemize{
+\item validation summaries
 \item failed records
 \item failure rates
-\item severity classification
-\item validation summaries
+\item severity classifications
 }
 
-Validation rules can be used to identify:
+Validation checks can identify:
 \itemize{
 \item duplicate records
 \item missing values
 \item invalid dates
-\item age inconsistencies
-\item logical data errors
+\item invalid ranges
+\item logical inconsistencies
 \item program eligibility issues
 }
 
-Severity classification is automatically assigned
-based on failure rate:
+Severity is automatically assigned based on failure rate:
 
 \itemize{
 \item GOOD = 0\% to 2\%
 \item WARNING = Above 2\% to 20\%
 \item CRITICAL = Above 20\%
 }
+
+Preconditions allow validations to run only on specific
+subsets of data.
 }
 \examples{
 
 library(validationcheck)
+library(dplyr)
 
 report <- validate_data(sample_registry)
 
 report <- report \%>\%
+
   add_validation(
+
     label = "Age Above 24",
+
     columns = "age",
+
     rule = "Participant age should not exceed 24 years",
-    check = age > 24
+
+    preconditions =
+      hiv_status == "POSITIVE",
+
+    check = greater_than(24)
+  ) \%>\%
+
+  add_validation(
+
+    label = "Duplicate IDs",
+
+    columns = "id_number",
+
+    rule = "ID numbers should be unique",
+
+    check = duplicates()
   )
 
 }

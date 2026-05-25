@@ -2,22 +2,21 @@
 #'
 #' Applies a validation rule to a validation agent object.
 #'
-#' This function evaluates user-defined validation checks
-#' and stores validation results including:
+#' This function evaluates validation checks and stores:
 #' \itemize{
+#'   \item validation summaries
 #'   \item failed records
 #'   \item failure rates
-#'   \item severity classification
-#'   \item validation summaries
+#'   \item severity classifications
 #' }
 #'
-#' Validation rules can be used to identify:
+#' Validation checks can identify:
 #' \itemize{
 #'   \item duplicate records
 #'   \item missing values
 #'   \item invalid dates
-#'   \item age inconsistencies
-#'   \item logical data errors
+#'   \item invalid ranges
+#'   \item logical inconsistencies
 #'   \item program eligibility issues
 #' }
 #'
@@ -30,23 +29,22 @@
 #'
 #' @param rule Description of the validation rule.
 #'
-#' @param preconditions Optional preprocessing steps applied
+#' @param preconditions Optional filtering conditions applied
 #' before validation.
 #'
-#' @param check Validation condition used to identify failed rows.
+#' @param check Validation function used to identify failed rows.
 #'
 #' @return
 #' Returns an updated validation object containing:
 #' \itemize{
 #'   \item validation results
 #'   \item failure rates
-#'   \item severity classification
-#'   \item failed records (stored separately for reliability)
+#'   \item severity classifications
+#'   \item failed records
 #' }
 #'
 #' @details
-#' Severity classification is automatically assigned
-#' based on failure rate:
+#' Severity is automatically assigned based on failure rate:
 #'
 #' \itemize{
 #'   \item GOOD = 0% to 2%
@@ -54,47 +52,97 @@
 #'   \item CRITICAL = Above 20%
 #' }
 #'
+#' Preconditions allow validations to run only on specific
+#' subsets of data.
+#'
 #' @examples
 #'
 #' library(validationcheck)
+#' library(dplyr)
 #'
 #' report <- validate_data(sample_registry)
 #'
 #' report <- report %>%
+#'
 #'   add_validation(
+#'
 #'     label = "Age Above 24",
+#'
 #'     columns = "age",
+#'
 #'     rule = "Participant age should not exceed 24 years",
-#'     check = age > 24
+#'
+#'     preconditions =
+#'       hiv_status == "POSITIVE",
+#'
+#'     check = greater_than(24)
+#'   ) %>%
+#'
+#'   add_validation(
+#'
+#'     label = "Duplicate IDs",
+#'
+#'     columns = "id_number",
+#'
+#'     rule = "ID numbers should be unique",
+#'
+#'     check = duplicates()
 #'   )
 #'
 #' @export
+
 add_validation <- function(
     agent,
     label,
     columns,
     rule,
-    preconditions = identity,
+    preconditions = NULL,
     check
 ){
 
-  # -------------------- original dataset -------------------------------
+  # -----------------------------------------------------------------------
+  # ORIGINAL DATA
+  # -----------------------------------------------------------------------
+
   data <- agent$data
 
-  # -------------------- apply preprocessing ----------------------------
-  checked_data <- preconditions(data)
+  # -----------------------------------------------------------------------
+  # CAPTURE PRECONDITIONS
+  # -----------------------------------------------------------------------
 
-  # -------------------- evaluate condition -----------------------------
+  preconditions <- rlang::enquo(preconditions)
+
+  # -----------------------------------------------------------------------
+  # APPLY PRECONDITIONS
+  # -----------------------------------------------------------------------
+
+  checked_data <- data
+
+  if (!rlang::quo_is_null(preconditions)) {
+
+    checked_data <- checked_data %>%
+
+      dplyr::filter(
+        !!preconditions
+      )
+  }
+
+  # -----------------------------------------------------------------------
+  # VALIDATION CHECK
+  # -----------------------------------------------------------------------
+
   failed_index <- tryCatch(
 
     {
 
-      # dataframe validator ----------------------------------
+      # dataframe-level validation ----------------------------------------
 
       result <- check(checked_data)
 
-      if(is.logical(result) &&
-         length(result) == nrow(checked_data)){
+      if(
+        is.logical(result) &&
+        length(result) == nrow(checked_data)
+      ){
 
         result
 
@@ -102,12 +150,11 @@ add_validation <- function(
 
         stop()
       }
-
     },
 
     error = function(e){
 
-      # column validator -------------------------------------
+      # column-level validation -------------------------------------------
 
       Reduce(
 
@@ -118,63 +165,124 @@ add_validation <- function(
           col_data <- checked_data[[col]]
 
           check(col_data)
-
         })
       )
     }
   )
 
-  failed_rows <- checked_data[failed_index, , drop = FALSE]
+  # -----------------------------------------------------------------------
+  # FAILED ROWS
+  # -----------------------------------------------------------------------
 
-  # -------------------- counts -----------------------------------------
+  failed_rows <- checked_data[
+    failed_index,
+    ,
+    drop = FALSE
+  ]
+
+  # -----------------------------------------------------------------------
+  # COUNTS
+  # -----------------------------------------------------------------------
+
   rows_checked <- nrow(checked_data)
+
   failed_validation <- nrow(failed_rows)
 
-  # -------------------- failure rate -----------------------------------
+  # -----------------------------------------------------------------------
+  # FAILURE RATE
+  # -----------------------------------------------------------------------
+
   failure_rate <- ifelse(
+
     rows_checked == 0,
+
     0,
-    round((failed_validation / rows_checked) * 100, 2)
+
+    round(
+      (failed_validation / rows_checked) * 100,
+      2
+    )
   )
 
-  # -------------------- severity classification ------------------------
+  # -----------------------------------------------------------------------
+  # SEVERITY CLASSIFICATION
+  # -----------------------------------------------------------------------
+
   severity <- dplyr::case_when(
+
     failure_rate <= 2 ~ "GOOD",
-    failure_rate > 2 & failure_rate <= 20 ~ "WARNING",
+
+    failure_rate > 2 &
+      failure_rate <= 20 ~ "WARNING",
+
     TRUE ~ "CRITICAL"
   )
 
-  # -------------------- stable validation ID ---------------------------
+  # -----------------------------------------------------------------------
+  # VALIDATION ID
+  # -----------------------------------------------------------------------
+
   validation_id <- paste0(
+
     gsub(" ", "_", label),
+
     "_",
-    format(Sys.time(), "%Y%m%d%H%M%S")
+
+    format(
+      Sys.time(),
+      "%Y%m%d%H%M%S"
+    )
   )
 
-  # -------------------- store failed rows separately -------------------
+  # -----------------------------------------------------------------------
+  # STORE FAILED ROWS
+  # -----------------------------------------------------------------------
+
   if (is.null(agent$failed_rows)) {
+
     agent$failed_rows <- list()
   }
 
   agent$failed_rows[[validation_id]] <- failed_rows
 
-  # -------------------- validation result ------------------------------
+  # -----------------------------------------------------------------------
+  # VALIDATION RESULT
+  # -----------------------------------------------------------------------
+
   result <- tibble::tibble(
+
     validation_id = validation_id,
+
     validation_check = label,
-    columns_checked = paste(columns, collapse = ", "),
+
+    columns_checked =
+      paste(columns, collapse = ", "),
+
     validation_rule = rule,
+
     rows_checked = rows_checked,
+
     failed_validation = failed_validation,
+
     failure_rate = failure_rate,
+
     severity = severity
   )
 
-  # -------------------- append report ----------------------------------
+  # -----------------------------------------------------------------------
+  # APPEND REPORT
+  # -----------------------------------------------------------------------
+
   agent$report <- dplyr::bind_rows(
+
     agent$report,
+
     result
   )
+
+  # -----------------------------------------------------------------------
+  # RETURN UPDATED AGENT
+  # -----------------------------------------------------------------------
 
   agent
 }
